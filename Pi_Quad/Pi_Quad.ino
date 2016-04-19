@@ -152,34 +152,34 @@ void loop()
   long rcthr, rcyaw, rcpit, rcroll;  // Variables to store radio in 
 
   // Read RC transmitter 
-  rcthr = channels[2];
-  rcyaw = channels[3];
+  rcthr = channels[3];
+  rcyaw = channels[2];
   rcpit = channels[1];
   rcroll = channels[0];
   
-  // Ask MPU6050 for orientation
+  // Ask MPU6050 for orientation. Current angle.
   ins.update();
   float roll,pitch,yaw;  
   ins.quaternion.to_euler(&roll, &pitch, &yaw);
-  roll = ToDeg(roll) ;
-  pitch = ToDeg(pitch) ;
+  roll = ToDeg(roll) + 0.2;
+  pitch = ToDeg(pitch) + 9;
   yaw = ToDeg(yaw) ;
   
-  if(time == 1000)
+  if(time == 500)
   {
     time = 0;
-    hal.console->printf("Mine print rcthr %ld,roll %.2f,pitch %.2f,yaw %.2f\n", rcthr,roll,pitch,yaw);
+    hal.console->printf("T:%ld R:%4.2f P:%4.2f Y:%4.2f\n", rcthr,roll,pitch,yaw);
   }
   time++;
   
-  // Ask MPU6050 for gyro data
+  // Ask MPU6050 for gyro data. Rotational velocity
   Vector3f gyro = ins.get_gyro();
   float gyroPitch = ToDeg(gyro.y), gyroRoll = ToDeg(gyro.x), gyroYaw = ToDeg(gyro.z);
   
   // Do the magic
-  if(rcthr > RC_THR_MIN + 100) {  // Throttle raised, turn on stablisation.
-    // Stablise PIDS
-    float pitch_stab_output = constrain(pids[PID_PITCH_STAB].get_pid((float)rcpit - pitch, 1), -250, 250); 
+  if(rcthr > RC_THR_MIN + 100) {  // Throttle raised, turn on stabilization.
+    // Stabilize PIDS
+    float pitch_stab_output = constrain(pids[PID_PITCH_STAB].get_pid((float)rcpit - pitch, 1), -250, 250); // error = desired_input - real_reading
     float roll_stab_output = constrain(pids[PID_ROLL_STAB].get_pid((float)rcroll - roll, 1), -250, 250);
     float yaw_stab_output = constrain(pids[PID_YAW_STAB].get_pid(wrap_180(yaw_target - yaw), 1), -360, 360);
   
