@@ -162,7 +162,7 @@ void loop()
   float roll,pitch,yaw;  
   ins.quaternion.to_euler(&roll, &pitch, &yaw);
   roll = ToDeg(roll) + 0.2;
-  pitch = ToDeg(pitch) + 9;
+  pitch = ToDeg(pitch) + 8.7;
   yaw = ToDeg(yaw) ;
   
   if(time == 500)
@@ -177,7 +177,7 @@ void loop()
   float gyroPitch = ToDeg(gyro.y), gyroRoll = ToDeg(gyro.x), gyroYaw = ToDeg(gyro.z);
   
   // Do the magic
-  if(rcthr > RC_THR_MIN + 100) {  // Throttle raised, turn on stabilization.
+  if(rcthr > RC_THR_MIN + 50) {  // Throttle raised, turn on stabilization.
     // Stabilize PIDS
     float pitch_stab_output = constrain(pids[PID_PITCH_STAB].get_pid((float)rcpit - pitch, 1), -250, 250); // error = desired_input - real_reading
     float roll_stab_output = constrain(pids[PID_ROLL_STAB].get_pid((float)rcroll - roll, 1), -250, 250);
