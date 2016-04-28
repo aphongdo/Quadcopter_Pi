@@ -7,7 +7,7 @@
 
 #include <AP_HAL.h>
 #include <AP_HAL_AVR.h>
-
+#include <string.h>
 #include <PID.h>
 
 // ArduPilot Hardware Abstraction Layer
@@ -89,15 +89,15 @@ int buf_offset = 0;
 
 //checksum verifier
 uint8_t verify_chksum(char *str, char *chk) {
-  uint8_t nc = 0;
-  for(int i=0; i<strlen(str); i++) 
-    nc = (nc + str[i]) << 1;
-  
-  long chkl = strtol(chk, NULL, 16); // supplied chksum to long
-  if(chkl == (long)nc)   // compare
-    return true;
+	uint8_t nc = 0;
+	for (int i = 0; i < strlen(str); i++)
+		nc = (nc + str[i]) << 1;
 
-  return false;
+	long chkl = strtol(chk, NULL, 16); // supplied chksum to long
+	if (chkl == (long) nc)   // compare
+		return true;
+
+	return false;
 }
 
 void loop() 
@@ -110,49 +110,101 @@ void loop()
   static uint32_t time = 0;
  
   static int16_t channels[8] = {0,0,0,0,0,0,0,0};
- 
+  static long double rdev = 0;
+  static long double pdev = 0;
+  static int thrscl = 10;
+  char *ch;
+
   // serial bytes available?
   int bytesAvail = hal.console->available();
-  if(bytesAvail > 0) {
-    while(bytesAvail > 0) {  //yes
-       char c = (char)hal.console->read();  //read next byte
-       if(c == '\n') {             // new line reached - process cmd 
-         buf[buf_offset] = '\0';  // null terminator
-         // process cmd
-         char *str = strtok(buf, "*");  // str = roll,pit,thr,yaw
-         char *chk = strtok(NULL, "*");  // chk = chksum
-         
-         if(verify_chksum(str,chk)) { // if chksum OK
-           char *ch = strtok(str, ",");  // first channel
-           channels[0] = (uint16_t)strtol(ch, NULL, 10);  // parse
+    if (bytesAvail > 0) {
+        while (bytesAvail > 0) {  //yes
+            char c = (char) hal.console->read();  //read next byte
+            if (c == '\n') {             // new line reached - process cmd
+                buf[buf_offset] = '\0';  // null terminator
+                // process cmd
+                char *str = strtok(buf, "*");  // str = roll,pit,thr,yaw
+                char *chk = strtok(NULL, "*");  // chk = chksum
 
-           for(int i=1; i<4; i++) {  // loop through final 3 channels
-             char *ch = strtok(NULL, ",");
-             channels[i] = (uint16_t)strtol(ch, NULL, 10);             
-           }
-           
-           lastPkt = hal.scheduler->millis();  // update last valid packet
-         } else {
-           hal.console->printf("Invalid chksum\n");
-         }
-         
-         buf_offset = 0;
-       }
-       else if(c != '\r') {
-         buf[buf_offset++] = c;   // store in buffer and continue until newline
-       }
-       bytesAvail --;
+                if (verify_chksum(str, chk)) { // if chksum OK
+                    if (strstr(str, "set")) {
+                        ch = strtok(str, "set,"); // parse roll deviation
+                        rdev = atof(ch);  // convert to float
+                        ch = strtok(NULL, ",");  // parse pitch deviation
+                        pdev = atof(ch);  // convert to float
+                        ch = strtok(NULL, ",");  // parse pitch deviation
+                        thrscl = atoi(ch);  // convert to int
+                        hal.console->printf("Setting %.2f pdev %.2f thrscl %d\n", rdev, pdev, thrscl);
+                    } else if (strstr(str, "pr_rate")) {
+                        ch = strtok(str, "pr_rate,"); // parse Kp
+                        pids[PID_PITCH_RATE].kP(atof(ch));  // convert to float
+                        pids[PID_ROLL_RATE].kP(atof(ch));
+                        ch = strtok(NULL, ",");  // parse Ki
+                        pids[PID_PITCH_RATE].kI(atof(ch));
+                        pids[PID_ROLL_RATE].kI(atof(ch));
+                        ch = strtok(NULL, ",");  // parse Kd
+                        pids[PID_PITCH_RATE].kD(atof(ch));
+                        pids[PID_ROLL_RATE].kD(atof(ch));
+                        hal.console->printf("PR Rate Kp %.1f Ki %.1f Kd %.1f\n", pids[PID_PITCH_RATE].kP(), pids[PID_PITCH_RATE].kI(),
+                                pids[PID_PITCH_RATE].kD());
+                    } else if (strstr(str, "pr_stab")) {
+                        ch = strtok(str, "pr_stab,"); // parse Kp
+                        pids[PID_PITCH_STAB].kP(atof(ch));  // convert to float
+                        pids[PID_ROLL_STAB].kP(atof(ch));
+                        ch = strtok(NULL, ",");  // parse Ki
+                        pids[PID_PITCH_STAB].kI(atof(ch));
+                        pids[PID_ROLL_STAB].kI(atof(ch));
+                        ch = strtok(NULL, ",");  // parse Kd
+                        pids[PID_PITCH_STAB].kD(atof(ch));
+                        pids[PID_ROLL_STAB].kD(atof(ch));
+                        hal.console->printf("PR Stab Kp %.1f Ki %.1f Kd %.1f\n", pids[PID_PITCH_STAB].kP(), pids[PID_PITCH_STAB].kI(),
+                                pids[PID_PITCH_STAB].kD());
+                    } else if (strstr(str, "yaw_rate")) {
+                        ch = strtok(str, "yaw_rate,"); // parse Kp
+                        pids[PID_YAW_RATE].kP(atof(ch));  // convert to float
+                        ch = strtok(NULL, ",");  // parse Ki
+                        pids[PID_YAW_RATE].kI(atof(ch));
+                        ch = strtok(NULL, ",");  // parse Kd
+                        pids[PID_YAW_RATE].kD(atof(ch));
+                        hal.console->printf("Yaw Rate Kp %.1f Ki %.1f Kd %.1f\n", pids[PID_YAW_RATE].kP(), pids[PID_YAW_RATE].kI(), pids[PID_YAW_RATE].kD());
+                    } else if (strstr(str, "yaw_stab")) {
+                        ch = strtok(str, "yaw_stab,"); // parse Kp
+                        pids[PID_YAW_STAB].kP(atof(ch));  // convert to float
+                        ch = strtok(NULL, ",");  // parse Ki
+                        pids[PID_YAW_STAB].kI(atof(ch));
+                        ch = strtok(NULL, ",");  // parse Kd
+                        pids[PID_YAW_STAB].kD(atof(ch));
+                        hal.console->printf("Yaw Stab Kp %.1f Ki %.1f Kd %.1f\n", pids[PID_YAW_STAB].kP(), pids[PID_YAW_STAB].kI(), pids[PID_YAW_STAB].kD());
+                    } else {
+                        char *ch = strtok(str, ",");  // first channel
+                        channels[0] = (uint16_t) strtol(ch, NULL, 10); // parse
+
+                        for (int i = 1; i < 4; i++) { // loop through final 3 channels
+                            char *ch = strtok(NULL, ",");
+                            channels[i] = (uint16_t) strtol(ch, NULL, 10);
+                        }
+                    }
+                    lastPkt = hal.scheduler->millis(); // update last valid packet
+                } else {
+                    hal.console->printf("Invalid chksum\n");
+                }
+
+                buf_offset = 0;
+            } else if (c != '\r') {
+                buf[buf_offset++] = c; // store in buffer and continue until newline
+            }
+            bytesAvail--;
+        }
     }
-  }
  
   // turn throttle off if no update for 0.5seconds
   if(hal.scheduler->millis() - lastPkt > 500) 
-    channels[2] = 0;
+    channels[3] = 0;
 
   long rcthr, rcyaw, rcpit, rcroll;  // Variables to store radio in 
 
   // Read RC transmitter 
-  rcthr = channels[3];
+  rcthr = RC_THR_MIN + (channels[3]*(long)thrscl);
   rcyaw = channels[2];
   rcpit = channels[1];
   rcroll = channels[0];
@@ -161,8 +213,8 @@ void loop()
   ins.update();
   float roll,pitch,yaw;  
   ins.quaternion.to_euler(&roll, &pitch, &yaw);
-  roll = ToDeg(roll) + 0.2;
-  pitch = ToDeg(pitch) + 8.7;
+  roll = ToDeg(roll) + rdev;
+  pitch = ToDeg(pitch) + pdev;
   yaw = ToDeg(yaw) ;
   
   if(time == 500)
