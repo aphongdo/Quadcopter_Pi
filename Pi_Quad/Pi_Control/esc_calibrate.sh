@@ -1,0 +1,14 @@
+gpio mode 1 pwm
+gpio pwm-ms
+gpio pwmr 1000
+gpio pwmc 48
+gpio pwm 1 800 # maximum throttle = 2ms
+read -p "connect Power...max throttle, wait 2s"
+sleep 2
+gpio pwm 1 400 # minimum throttle = 1ms
+read -p "connect Power...min throttle"
+sleep 3
+read -p "Slightly open throttle"
+gpio pwm 1 450
+read -p "stop throttle"
+gpio pwm 1 400
