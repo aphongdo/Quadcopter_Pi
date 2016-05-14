@@ -46,6 +46,7 @@ def main():
     readStr=ser.readline()
     if (readStr != readStrOld):
         print readStr
+        sock.sendto(readStr, addr)
         readStrOld = readStr
 
     # if control packet, send to ardupilot

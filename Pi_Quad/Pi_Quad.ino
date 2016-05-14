@@ -9,12 +9,18 @@
 #include <AP_HAL_AVR.h>
 #include <string.h>
 #include <PID.h>
+#include <AP_BattMonitor.h>
 
 // ArduPilot Hardware Abstraction Layer
 const AP_HAL::HAL& hal = AP_HAL_AVR_APM2;
 
 // MPU6050 accel/gyro chip
 AP_InertialSensor_MPU6000 ins;
+
+// Battery info
+uint32_t bat_Schl;
+uint32_t time_TPRY;
+AP_BattMonitor battery_mon;
 
 #define RC_THR_MIN   1070
 // Motor numbers definitions
@@ -79,6 +85,12 @@ void setup()
 
 
   hal.uartA->begin(57600);   // for radios
+  
+  // initialise the battery monitor
+  battery_mon.init();
+  battery_mon.set_monitoring(AP_BATT_MONITOR_VOLTAGE_AND_CURRENT);
+  bat_Schl = hal.scheduler->millis();
+  time_TPRY = hal.scheduler->millis();
   // We're ready to go! Now over to loop()
   hal.console->printf("Finish Setup\n");
 }
@@ -107,7 +119,6 @@ void loop()
   while (ins.num_samples_available() == 0);
   
   static uint32_t lastPkt = 0;
-  static uint32_t time = 0;
  
   static int16_t channels[8] = {0,0,0,0,0,0,0,0};
   static long double rdev = 0;
@@ -199,7 +210,16 @@ void loop()
  
   // turn throttle off if no update for 0.5seconds
   if(hal.scheduler->millis() - lastPkt > 500) 
-    channels[3] = 0;
+    channels[3] = channels[3]*0.9;
+  if(hal.scheduler->millis() - bat_Schl > 10000) 
+  {
+    battery_mon.read();
+    hal.console->printf("V: %.2f R:%d%%\n",
+                battery_mon.voltage()+0.45,
+                battery_mon.capacity_remaining_pct());
+    bat_Schl = hal.scheduler->millis();
+  }
+    
 
   long rcthr, rcyaw, rcpit, rcroll;  // Variables to store radio in 
 
@@ -217,12 +237,11 @@ void loop()
   pitch = ToDeg(pitch) + pdev;
   yaw = ToDeg(yaw) ;
   
-  if(time == 500)
+  if((hal.scheduler->millis() - time_TPRY) > 1000)
   {
-    time = 0;
-    hal.console->printf("T:%ld R:%4.2f P:%4.2f Y:%4.2f\n", rcthr,roll,pitch,yaw);
+    time_TPRY = hal.scheduler->millis();
+    hal.console->printf("T:%ld R:%4.2f P:%4.2f Y:%4.0f\n", rcthr,roll,pitch,yaw);
   }
-  time++;
   
   // Ask MPU6050 for gyro data. Rotational velocity
   Vector3f gyro = ins.get_gyro();
